@@ -46,6 +46,98 @@ from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 from .enums import Resource, PortKind
+#This is a python dict that maps the node name with the adjacent node names
+catan_graph: dict[str, list[str]] = {
+    "A": ["D", "E"],
+    "B": ["E", "F"],
+    "C": ["F", "G"],
+    "D": ["A", "H"],
+    "E": ["A", "J", "B"],
+    "F": ["C", "B", "L"],
+    "G": ["N", "C"],
+    "H": ["D", "O", "I"],
+    "I": ["H", "T", "J"],
+    "J": ["E", "I", "K"],
+    "K": ["J", "L", "V"],
+    "L": ["F", "K", "M"],
+    "M": ["L", "N", "X"],
+    "N": ["G", "M", "P"],
+    "O": ["H", "R"],
+    "P": ["N", "Z"],
+    "Q": ["R", "B2"],
+    "R": ["Q", "S", "O"],
+    "S": ["R", "D2", "T"],
+    "T": ["I", "S", "U"],
+    "U": ["T", "F2", "V"],
+    "V": ["K", "U", "W"],
+    "W": ["V", "X", "H2"],
+    "X": ["M", "W", "Y"],
+    "Y": ["Z", "J2", "X"],
+    "Z": ["P", "Y", "A2"],
+    "A2": ["Z", "L2"],
+    "B2": ["Q", "C2"],
+    "C2": ["B2", "V2", "D2"],
+    "D2": ["S", "C2", "E2"],
+    "E2": ["D2", "N2", "F2"],
+    "F2": ["U", "E2", "G2"],
+    "G2": ["F2", "P2", "H2"],
+    "H2": ["W", "G2", "I2"],
+    "I2": ["H2", "R2", "J2"],
+    "J2": ["I2", "Y", "K2"],
+    "K2": ["J2", "T2", "L2"],
+    "L2": ["A2", "K2"],
+    "V2": ["C2", "M2"],
+    "M2": ["V2", "U2", "N2"],
+    "N2": ["M2", "E2", "O2"],
+    "O2": ["N2", "X2", "P2"],
+    "P2": ["O2", "G2", "Q2"],
+    "Q2": ["P2", "Z2", "R2"],
+    "R2": ["Q2", "I2", "S2"],
+    "S2": ["R2", "B3", "T2"],
+    "T2": ["K2", "S2"],
+    "U2": ["M2", "W2"],
+    "W2": ["U2", "X2"],
+    "X2": ["W2", "O2", "Y2"],
+    "Y2": ["X2", "Z2"],
+    "Z2": ["Y2", "Q2", "A3"],
+    "A3": ["Z2", "B3"],
+    "B3": ["A3", "S2"],
+}
+
+#This lists the types of terrains possible in the game
+RESOURCE_POOL = [
+    "forest",
+    "forest",
+    "forest",
+    "forest",
+    "pasture",
+    "pasture",
+    "pasture",
+    "pasture",
+    "field",
+    "field",
+    "field",
+    "field",
+    "hill",
+    "hill",
+    "hill",
+    "mountain",
+    "mountain",
+    "mountain",
+    "desert",
+]
+#This represents the dice number tokes used on the non-desert hexes. Each time the dice rolls the number, the resource is gained.
+CHITS = [2, 3, 3, 4, 4, 5, 5, 6, 6, 8, 8, 9, 9, 10, 10, 11, 11, 12]
+
+#Possible colours to use
+RESOURCE_COLOURS = {
+    "forest": "#4caf50",
+    "pasture": "#8bc34a",
+    "field": "#ffd54f",
+    "hill": "#ff8a65",
+    "mountain": "#b0bec5",
+    "desert": "#ffe0b2",
+}
 
 
 @dataclass(frozen=True)
@@ -54,39 +146,14 @@ class HexTile:
     A single hexagon tile on the board.
     Each tile produces a specific resource when the dice roll matches its number.
     """
-    # TODO: Fill in these fields
-    # id: int
-    # resource: Resource
-    # number: Optional[int]  # None for desert, otherwise 2-12
+    vertices: tuple[str, ...] #the intersections surrounding the hex
+    centroid: tuple[float, float] #center coordinate od the hex
+    area: float#useful for drawing. maybe one of us needs it for the UI
+    resources: str| None = None # here we assign the resource to the specific hex
+    radius: float =0.0 #useful for rendering
+    orientation: float =0.0 #used for ui
+    hex_points: tuple[tuple[float, float], ...] | None #coordinates. Useful for drawing
 
-
-@dataclass
-class Vertex:
-    """
-    A corner where up to 3 hexes meet.
-    Players can build settlements (1 VP) or cities (2 VP) here.
-    """
-    # TODO: Fill in these fields
-    # id: int
-    # edge_ids: List[int] = field(default_factory=list)
-    # hex_ids: List[int] = field(default_factory=list)
-    # owner: Optional[int] = None  # player ID
-    # is_city: bool = False
-    pass
-
-
-@dataclass
-class Edge:
-    """
-    A line connecting two vertices.
-    Players can build roads here.
-    """
-    # TODO: Fill in these fields
-    # id: int
-    # v1: int
-    # v2: int
-    # owner: Optional[int] = None  # player ID
-    pass
 
 
 @dataclass(frozen=True)
