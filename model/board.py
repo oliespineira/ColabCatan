@@ -1,52 +1,14 @@
 """
-This file contains the board structure - the physical pieces of the game.
-
-WHAT WE'RE BUILDING:
-1. HexTile - A single hexagon tile on the board (like a piece of land)
-2. Vertex - A corner where 3 hexes meet (where you can build settlements/cities)
-3. Edge - A line connecting two vertices (where you can build roads)
-4. Port - A harbor on the coast (for better trading)
-5. BoardGraph - The entire board that holds everything together
-
-WHAT YOU NEED TO DO:
-
-1. Fill in the HexTile class:
-   - It needs: id (a unique number), resource (Resource type), number (the dice number, or None for desert)
-
-2. Fill in the Vertex class:
-   - It needs: id (unique number), edge_ids (list of edges connected to this vertex), 
-     hex_ids (list of hexes touching this vertex - up to 3), owner (player ID who owns it, or None),
-     is_city (True if it's a city, False if it's just a settlement)
-
-3. Fill in the Edge class:
-   - It needs: id (unique number), v1 and v2 (the two vertex IDs it connects),
-     owner (player ID who owns the road, or None)
-
-4. Fill in the Port class:
-   - It needs: id (unique number), vertex_ids (tuple of 2 vertices that touch this port),
-     kind (PortKind enum), resource (the specific resource for 2:1 ports, or None)
-
-5. Fill in the BoardGraph class:
-   - It needs: vertices (dictionary: vertex_id -> Vertex), edges (dictionary: edge_id -> Edge),
-     hexes (dictionary: hex_id -> HexTile), ports (dictionary: port_id -> Port),
-     num_to_hexes (dictionary: dice_number -> set of hex IDs),
-     vertex_to_hexes (dictionary: vertex_id -> list of hex IDs)
-
-   Also add these helper methods:
-   - edges_of(v) - returns list of edge IDs connected to vertex v
-   - other_end(e, v) - given edge e and one vertex v, return the other vertex
-   - neighbors(v) - returns list of neighbor vertex IDs
-   - pip(number) - static method that returns the pip count for a dice number (2 and 12 = 1 pip, etc.)
-   - vertex_pip(v) - returns total pip score for a vertex (sum of pips from adjacent hexes)
-   - player_has_port(player_id, port) - checks if player owns a settlement/city at either vertex of the port
+This is the Settlers of Catan board implementation. Essential for everyone in the group to know what is happening here.
 """
-
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 from collections import defaultdict
 
 from .enums import Resource, PortKind
-#This is a python dict that maps the node name with the adjacent node names
+
+
+#This is a python dict that maps the node name with the adjacent node names. In other words, it represents the vertex adjacency list for the board.
 catan_graph: dict[str, list[str]] = {
     "A": ["D", "E"],
     "B": ["E", "F"],
@@ -104,7 +66,32 @@ catan_graph: dict[str, list[str]] = {
     "B3": ["A3", "S2"],
 }
 
-#This lists the types of terrains possible in the game
+#these are the different hexagons, each one has a 6 corners (nodes in the graph)
+HEX_LAYOUT={
+    0: ("D", "A", "E", "J", "H", "I"),   
+    1: ("E", "B", "F", "L", "K", "J"),  
+    2: ("F", "C", "G", "N", "M", "L"),   
+    3: ("O", "H", "I", "T", "S", "R"),  
+    4: ("I", "J", "K", "V", "U", "T"),  
+    5: ("K", "L", "M", "X", "W", "V"),     
+    6: ("M", "N", "P", "Z", "Y", "X"), 
+    7: ("Q", "R", "S", "D2", "C2", "B2"),    
+    8: ("S", "T", "U", "F2", "E2", "D2"),    
+    9: ("U", "V", "W", "H2", "G2", "F2"),   
+    10: ("W", "X", "Y", "J2", "I2", "H2"),  
+    11: ("Y", "Z", "A2", "L2", "K2", "J2"),
+    12: ("C2", "D2", "E2", "N2", "M2", "V2"),
+    13: ("E2", "F2", "G2", "P2", "O2", "N2"),
+    14: ("G2", "H2", "I2", "R2", "Q2", "P2"),
+    15: ("I2", "J2", "K2", "T2", "S2", "R2"),
+    16: ("M2", "N2", "O2", "X2", "W2", "U2"),
+    17: ("O2", "P2", "Q2", "Z2", "Y2", "X2"),
+    18: ("Q2", "R2", "S2", "B3", "A3", "Z2"),
+
+
+}
+
+#This lists the types of terrains possible in the game. Each type of terrain produce their corresponfing resource
 RESOURCE_POOL = [
     "forest",
     "forest",
@@ -144,70 +131,136 @@ RESOURCE_COLOURS = {
 class HexTile:
     """
     A single hexagon tile on the board.
-    Each tile produces a specific resource when the dice roll matches its number.
+    The number attribute relates to the dice number token (there is none for the desert)
     """
-    vertices: tuple[str, ...] #the intersections surrounding the hex
-    centroid: tuple[float, float] #center coordinate od the hex
-    area: float#useful for drawing. maybe one of us needs it for the UI
-    resources: str| None = None # here we assign the resource to the specific hex
-    radius: float =0.0 #useful for rendering
-    orientation: float =0.0 #used for ui
-    hex_points: tuple[tuple[float, float], ...] | None #coordinates. Useful for drawing
+    id: int
+    resource: Optional[Resource] # none for desert
+    number: Optional[int]#chit number, none for desert
+# how to use: HexTile(id=0, resource=Resource.HILL, number=8)
 
+@dataclass
+class Vertex:
+    """This is the corner where up to 3 hexes meet"""
+    id: str
+    edge_ids: list[int] = field(default_factory=list) #list of edge IDs connected to the specific vertex
+    hex_ids: list[int] = field(default_factory=list) #list of hexes touching vertex, up to 3
+    owner: Optional[int] = None  #player who has a settlement or city there
+    is_city: bool = False# false meaning settlement and true meaning City
 
-
-@dataclass(frozen=True)
-class Port:
+@dataclass
+class Edge:
     """
-    A harbor on the coast.
-    Players with settlements next to ports get better trade rates.
+    Edge connecting two vertices (for roads).
     """
-    # TODO: Fill in these fields
-    # id: int
-    # vertex_ids: Tuple[int, int]  # the 2 vertices that touch this port
-    # kind: PortKind
-    # resource: Optional[Resource] = None  # for 2:1 ports, which resource
-    pass
-
-
+    id: int
+    v1: str #first vertex endpoint
+    v2: str#second vertex endpoint
+    owner: Optional[int] = None  # player id who owns the road
 @dataclass
 class BoardGraph:
     """
     The complete board - holds all hexes, vertices, edges, and ports.
     Also includes helpful indexes for fast lookups.
     """
-    # TODO: Fill in these fields
-    # vertices: Dict[int, Vertex] = field(default_factory=dict)
-    # edges: Dict[int, Edge] = field(default_factory=dict)
-    # hexes: Dict[int, HexTile] = field(default_factory=dict)
-    # ports: Dict[int, Port] = field(default_factory=dict)
-    # num_to_hexes: Dict[int, Set[int]] = field(default_factory=lambda: defaultdict(set))
-    # vertex_to_hexes: Dict[int, List[int]] = field(default_factory=dict)
-    pass
+    vertices: Dict[str, Vertex]= field(default_factory= dict)
+    edges: Dict[int, Edge] = field(default_factory=dict)           # edge_id -> Edge
+    hexes: Dict[int, HexTile] = field(default_factory=dict)        # hex_id -> HexTile
+    num_to_hexes: Dict[int, Set[int]] = field(default_factory=lambda: defaultdict(set))
+    vertex_to_hexes: Dict[str, List[int]] = field(default_factory=dict)
 
-    # TODO: Add helper methods here
-    # def edges_of(self, v: int) -> List[int]:
-    #     """Returns list of edge IDs connected to vertex v."""
-    #     pass
-    #
-    # def other_end(self, e: int, v: int) -> int:
-    #     """Given edge e and vertex v, return the other vertex."""
-    #     pass
-    #
-    # def neighbors(self, v: int) -> List[int]:
-    #     """Returns list of neighbor vertex IDs (vertices connected by edges)."""
-    #     pass
-    #
-    # @staticmethod
-    # def pip(number: Optional[int]) -> int:
-    #     """Returns pip count for a dice number. 2 and 12 = 1 pip, 3 and 11 = 2 pips, etc."""
-    #     pass
-    #
-    # def vertex_pip(self, v: int) -> int:
-    #     """Returns total pip score for vertex (sum of pips from adjacent hexes)."""
-    #     pass
-    #
-    # def player_has_port(self, player_id: int, port: Port) -> bool:
-    #     """Checks if player owns a settlement/city at either vertex of the port."""
-    #     pass
 
+    def __post_init__(self):
+        # Build num_to_hexes from hexes
+        for hid, h in self.hexes.items():
+            if h.number is not None:
+                self.num_to_hexes[h.number].add(hid)
+
+        # Build vertex_to_hexes from vertices. 
+        for vid, v in self.vertices.items():
+            self.vertex_to_hexes[vid] = list(v.hex_ids)
+
+        # Ensure edge back-references exist on vertices
+        for eid, e in self.edges.items():
+            if e.v1 in self.vertices and eid not in self.vertices[e.v1].edge_ids:
+                self.vertices[e.v1].edge_ids.append(eid)
+            if e.v2 in self.vertices and eid not in self.vertices[e.v2].edge_ids:
+                self.vertices[e.v2].edge_ids.append(eid)
+
+    # SOME HELPER METHODS
+
+    def edges_of(self, v: str) -> List[int]:
+        """Returns list of edge IDs connected to vertex v."""
+        return list(self.vertices[v].edge_ids)
+
+    def other_end(self, e: int, v: str) -> str:
+        """Given edge e and one vertex v, return the other vertex."""
+        edge = self.edges[e]
+        if v == edge.v1:
+            return edge.v2
+        if v == edge.v2:
+            return edge.v1
+        raise ValueError(f"Vertex {v} is not an endpoint of edge {e}")
+
+    def neighbors(self, v: str) -> List[str]:
+        """Returns list of neighbor vertex IDs (vertices connected by edges)."""
+        return [self.other_end(eid, v) for eid in self.edges_of(v)]
+    
+
+def build_catan_board(resource_assignment: List[Resource], 
+                       chit_assignment: List[int]) -> BoardGraph:
+    """
+    Builds the complete Catan board from the graph structure.
+    """
+    board = BoardGraph()
+    
+    # Create all vertices
+    for vertex_id in catan_graph.keys():
+        board.vertices[vertex_id] = Vertex(id=vertex_id)
+    
+    # Create edges from adjacency list
+    edge_id = 0
+    seen_edges = set()
+    for v1, neighbors in catan_graph.items():
+        for v2 in neighbors:
+            edge_key = tuple(sorted([v1, v2]))
+            if edge_key not in seen_edges:
+                board.edges[edge_id] = Edge(id=edge_id, v1=v1, v2=v2)
+                edge_id += 1
+                seen_edges.add(edge_key)
+    
+    # Create hexes and link to vertices
+    for hex_id, vertices in HEX_LAYOUT.items():
+        board.hexes[hex_id] = HexTile(
+            id=hex_id,
+            resource=resource_assignment[hex_id],
+            number=chit_assignment[hex_id]
+        )
+        # Link vertices to this hex
+        for v_id in vertices:
+            board.vertices[v_id].hex_ids.append(hex_id)
+    
+    return board
+
+def create_standard_board() -> BoardGraph:
+    """Creates a standard Catan board with shuffled resources and chits."""
+    import random
+    
+    resources = RESOURCE_POOL.copy()
+    random.shuffle(resources)
+    
+    chits = CHITS.copy()
+    random.shuffle(chits)
+    
+    # Find desert and assign None chit
+    resource_assignment = [Resource.from_string(r) for r in resources]
+    chit_assignment = []
+    chit_idx = 0
+    
+    for i in range(19):
+        if resources[i] == "desert":
+            chit_assignment.append(None)
+        else:
+            chit_assignment.append(chits[chit_idx])
+            chit_idx += 1
+    
+    return build_catan_board(resource_assignment, chit_assignment)
