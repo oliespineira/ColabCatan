@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, Callable, Optional, Iterable
 import random
 from collections import Counter, defaultdict
 
-# ===== Basic type aliases =====
+#Basic type aliases 
 Resource = str          # e.g., "wood", "brick", "sheep", "wheat", "ore"
 StructureKind = str     # "settlement" or "city"
 PlayerID = str          # usually a string or player name/id
