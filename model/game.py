@@ -71,7 +71,7 @@ class GameState:
     current_player_idx: int = 0
 
     #setup phase tracking
-    setup_placements: list[tuple[int, str, str]]= field(default_factory=list)
+    setup_placements: list[tuple[int, str, int]]= field(default_factory=list)
     # Each tuple: (player_id, settlement_vertex, road_edge_or_vertex)
 
     #dice and robber:
@@ -171,22 +171,23 @@ class GameSetup:
 
 
         while len(highest_rollers)>1:
-            print("tie betweeen players. They will re-roll: {[p.name for p in _ highest_rollers]}")
+            print(f"tie betweeen players. They will re-roll: {[p.name for p, _ in highest_rollers]}")
             new_rolls=[]
             for player, _ in highest_rollers:
                 roll= self._roll_dice()
                 total= sum(roll)
                 new_rolls.append((player, total))
-                max_roll= max(r[1] for r in new_rolls)
-                highest_rollers= [r for r in new_rolls if r[1]== max_roll]
-            rolls.sort(key=lambda x:x[1], reverse= True) #sorting the players by their final roll (descending)
+            max_roll= max(r[1] for r in new_rolls)
+            highest_rollers= [r for r in new_rolls if r[1]== max_roll]
+        
+        rolls.sort(key=lambda x:x[1], reverse= True) #sorting the players by their final roll (descending)
 
-            #setting turn order
-            self.game.turn_order = [player.id for player, _ in rolls ]
-            self.game.current_phase = GamePhase.FIRST_SETTLEMENT_ROUND
-            self.game.current_player_idx = 0
+        #setting turn order
+        self.game.turn_order = [player.id for player, _ in rolls ]
+        self.game.current_phase = GamePhase.FIRST_SETTLEMENT_ROUND
+        self.game.current_player_idx = 0
 
-            return [(player.name, roll) for player, roll in rolls]
+        return [(player.name, roll) for player, roll in rolls]
         
     def _roll_dice(self)-> tuple[int, int]:
         """
@@ -221,7 +222,7 @@ class GameSetup:
         if vertex.owner is not None:
             return False, "The vertex you are trying to access is already occupied"
         
-        for neighbour_id in board.neighbours(vertex_id):
+        for neighbour_id in board.neighbors(vertex_id):
             neighbour = board.vertices[neighbour_id]
             if neighbour.owner is not None:
                 return False, "The vertex you want to build in is too close to another settlement (distance rule)"
@@ -238,7 +239,7 @@ class GameSetup:
             return False
         if self.game.current_phase not in[
             GamePhase.FIRST_SETTLEMENT_ROUND,
-            GamePhase. SECOND_SETTLEMENT_ROUND
+            GamePhase.SECOND_SETTLEMENT_ROUND
         ]:
             return False
         
@@ -247,7 +248,7 @@ class GameSetup:
         #now we validat the placement
         can_place, reason= self.can_place_initial_settlement(current_player.id, vertex_id)
         if not can_place:
-            print("The settlement cannot be placed: {reason}")
+            print(f"The settlement cannot be placed: {reason}")
             return False
         
         #here we finally place the settlement
@@ -257,9 +258,10 @@ class GameSetup:
         current_player.settlements_remaining -=1
         current_player.victory_points +=1
 
-        print("{current_player.name} placed settlement at {vertex_id}")
+        print(f"{current_player.name} placed settlement at {vertex_id}")
 
         return True
+    
     def can_place_initial_road(self, player_id: int, vertex_id: str, edge_id: int)->tuple[bool, str]:
         """
         This method is similar to the above but instead of checking vertex, we check for the edge
@@ -306,14 +308,14 @@ class GameSetup:
 
         can_place, reason = self.can_place_initial_road(current_player.id, settlement_vertex_id, edge_id)
         if not can_place:
-            print("Cannot place road: {reason}")
+            print(f"Cannot place road: {reason}")
             return False
         
         edge= self.game.board.edges[edge_id]
         edge.owner= current_player.id
         current_player.roads_remaining-=1
 
-        print("{current_player.name} placed road at edge {edge_id}")
+        print(f"{current_player.name} placed road at edge {edge_id}")
         #now we store the placement
         self.game.setup_placements.append((current_player.id, settlement_vertex_id, edge_id))
 
@@ -352,6 +354,7 @@ class GameSetup:
             return
         if self.game.current_phase != GamePhase.MAIN_GAME:
             print("Not in the main game phase yet")
+            return
 
         #Get the second settlement placements 
         num_players = len(self.game.players)
@@ -361,13 +364,13 @@ class GameSetup:
             player= self.game.players[player_id]
             vertex= self.game.board.vertices[settlement_vertex]
         
-        #getting all hexes adjacent to this settlement
-        for hex_id in vertex.hex_ids:
-            hex_tile = self.game.board.hexes[hex_id]
+            #getting all hexes adjacent to this settlement
+            for hex_id in vertex.hex_ids:
+                hex_tile = self.game.board.hexes[hex_id]
 
-            if hex_tile.resource is not None: #give the resource if hex produces one (is not desert)
-                player.add_resource(hex_tile.resource, 1)
-                print("{player.name} receives 1 {hex_tile.resource.value} from hex {hex_id}")
+                if hex_tile.resource is not None: #give the resource if hex produces one (is not desert)
+                    player.add_resource(hex_tile.resource, 1)
+                    print(f"{player.name} receives 1 {hex_tile.resource.value} from hex {hex_id}")
 
         print("The initial resources were distributed")
 
@@ -378,8 +381,8 @@ class GameSetup:
             return
         
         for player in self.game.players:
-            resources_str= ", ".join(["{res.value}: {amt}" for res, amt in player.resources.items() if amt>0])
-            print("{player.name}: {resources_str if resources_str else 'No resources'}")
+            resources_str= ", ".join([f"{res.value}: {amt}" for res, amt in player.resources.items() if amt>0])
+            print(f"{player.name}: {resources_str if resources_str else 'No resources'}")
     
     #now the game flow summary
 
@@ -400,7 +403,7 @@ class GameSetup:
         #1 create game
         print("1. The Game is Being Created")
         self.create_game(player_names, player_colours)
-        print(" the game was created with {len(player_names)} players\n")
+        print(f" the game was created with {len(player_names)} players\n")
 
         #2 board setup
         print("2. Board Setup")
@@ -410,8 +413,8 @@ class GameSetup:
         print("3. Determining tURN order")
         order= self.determine_turn_order()
         for name, roll in order:
-            print("{name} rolled {roll}")
-        print("Turn order: {' -> '.join([p.name for p in self.game.players])}\n")
+            print(f"{name} rolled {roll}")
+        print(f"Turn order: {' -> '.join([p.name for p in self.game.players])}\n")
 
         #4 placing initial settlements(snake order)
         print("4. Initial Placement")
@@ -445,11 +448,6 @@ class GameSetup:
         print(" The setup was finalised")
 
         return self.game
-
-        
-
-
-
         
 
         
