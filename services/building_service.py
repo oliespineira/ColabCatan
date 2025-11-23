@@ -2,7 +2,6 @@
 Building service for roads and settlements.
 This module handles the actual building logic and updates the game state.
 
-For Person 4's tasks:
 - Building roads (CPU shortest path algorithm)
 - Building settlements (updating them)
 - Using multidimensional arrays for resource location checking
