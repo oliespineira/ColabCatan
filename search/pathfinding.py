@@ -1,11 +1,22 @@
 """
 Pathfinding algorithms for CPU players.
-Implements shortest path algorithms (Dijkstra's) for finding optimal road placements.
 
-This module helps CPU players decide where to build roads by finding:
-- Shortest path to a required resource
-- Shortest path to a port
-- Shortest path to a strategic location
+Algorithms referenced:
+- Dijkstra's algorithm with a binary heap priority queue (`O(E log V)`)
+- Breadth-first search for connectivity queries (`O(V + E)`)
+
+Method time complexities:
+- `shortest_path_to_resource`: `O(H * V + E log V)` combines resource scanning
+  with Dijkstra.
+- `shortest_path_to_vertex`: `O(E log V)` pure Dijkstra run.
+- `_dijkstra_shortest_path`: `O(E log V)` explores each edge at most once.
+- `_find_vertices_with_resource`: `O(H * V)` since it scans every vertex per
+  resource hex (small constant in practice).
+- `get_player_connected_vertices`: `O(V + E)` BFS on owned roads.
+- `find_best_road_placement`: `O(E log V + H * V)` delegates to resource lookup
+  plus shortest path logic.
+- `_find_any_valid_road`: `O(E)` bounded by traversing adjacent edges from the
+  player's frontier.
 """
 
 from typing import Dict, List, Tuple, Optional, Set
