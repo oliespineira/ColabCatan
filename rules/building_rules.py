@@ -1,21 +1,26 @@
 """
 Building rules for roads and settlements during the main game.
-This module validates whether a player can build roads and settlements according to Catan rules.
 
-RULES FOR ROADS:
-- Road must connect to an existing road or settlement/city owned by the player
-- Edge must be empty (no existing road)
-- Player must have enough resources (1 Lumber + 1 Brick)
+Algorithms referenced:
+- Constant-time resource checks via dict lookups.
+- Local adjacency scans (`O(deg(v))`) for connectivity and distance rule
+  enforcement.
 
-RULES FOR SETTLEMENTS:
-- Vertex must be empty
-- No settlement/city within 2 edges (distance rule)
-- Must be connected by a road owned by the player
-- Player must have enough resources (1 Lumber + 1 Brick + 1 Grain + 1 Wool)
+Method time complexities:
+- `can_build_road`: `O(deg(v1) + deg(v2))` to inspect adjacent edges.
+- `can_build_settlement`: `O(deg(vertex))` dominated by distance/road checks.
+- `can_upgrade_to_city`: `O(1)` because it only inspects the target vertex.
+- `_is_vertex_connected_to_player`: `O(deg(vertex))`.
+- `_is_vertex_connected_by_road`: `O(deg(vertex))`.
+- `_check_distance_rule`: `O(deg(vertex))` since it visits neighbors once.
 
-RULES FOR CITIES:
-- Vertex must have a settlement owned by the player
-- Player must have enough resources (2 Grain + 3 Ore)
+Rule recap:
+- Roads must connect to existing infrastructure, be unoccupied, and require
+  1 Lumber + 1 Brick.
+- Settlements must obey the distance rule, be road-connected, and cost 1 each of
+  Lumber, Brick, Grain, and Wool.
+- Cities require owning the settlement, cost 2 Grain + 3 Ore, and have limited
+  supply.
 """
 
 from typing import Tuple, Optional
