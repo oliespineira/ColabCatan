@@ -104,6 +104,184 @@ class GameState:
         else:
             #for a nurmal game: we cycle through the players in normal order
             self.current_player_idx= (self.current_player_idx +1)%len(self.players)
+
+    def calculate_longest_road_for_player(self, player_id: int)-> int:
+        """
+        This method calculates the longest road for a specific player using DFS.
+        It then returns the length of the longest continuous road
+        """
+        #getting all the edges owned by the player that has been passed in to the method.
+        player_edges=[edgeid for edgeid, edge in self.board.edges.items() if edge.owner == player_id]
+        if len(player_edges)<5: #the player needs at least 5 roads to be considered for the longest road
+            return 0
+        
+        #here we need to build an adjacency list of vertices (undirected) connected by player's roads. 
+        #for each owned edge, we ensure both endpoints exist in the dict, then add each to the other's neighbour list
+        road_graph={}
+        for edgeid in player_edges:
+            edge = self.board.edges[edgeid]
+            if edge.v1 not in road_graph:
+                road_graph[edge.v1]= []
+            if edge.v2 not in road_graph:
+                road_graph[edge.v2]= []
+            road_graph[edge.v1].append(edge.v2)
+            road_graph[edge.v2].append(edge.v1)
+        
+        #DFS to find the longest path
+        
+        # DFS to find longest path
+        def dfs(vertex: str, visited_edges: set) -> int:
+            """DFS to find longest road from this vertex
+            visited_edges tracks which edges have been used on the current path(this is used to prevent reusing an edge and inflating length via cycles or zigzags)
+            """
+            max_length = 0
+            
+            for neighbor in road_graph.get(vertex, []):
+                # here we are checking if we can traverse the edge we're on right now
+                edge_key = tuple(sorted([vertex, neighbor])) #we sort them so (a,b) is the same as (b,a)
+                
+                if edge_key not in visited_edges: #only proceed if thee edge has not already been visited
+                    # Here we Check if there is a neighbour vertex that blocks the path
+                    neighbor_vertex = self.board.vertices[neighbor]
+                    if neighbor_vertex.owner is not None and neighbor_vertex.owner != player_id:
+                        continue  # If this is the case we can't continue counting through opponent's settlement
+                    
+                    # Marking edge as visited and using recursion to go through the entire length
+                    visited_edges.add(edge_key)
+                    length = 1 + dfs(neighbor, visited_edges)
+                    max_length = max(max_length, length)
+                    visited_edges.remove(edge_key)
+            
+            return max_length
+        
+        # Try starting from each vertex in the road network
+        longest = 0
+        for start_vertex in road_graph.keys():
+            # Check if this vertex blocks us (opponent's settlement)
+            vertex = self.board.vertices[start_vertex]
+            if vertex.owner is not None and vertex.owner != player_id:
+                continue
+            
+            length = dfs(start_vertex, set())
+            longest = max(longest, length)
+        
+        return longest
+
+    def update_longest_road(self)-> bool:
+        """
+        This method serves to calculate the longest road for all players and award the longeest road bonus.
+        Returns True if longest road holder changed.
+        """
+        #Calculate longest road for each player
+        road_lengths= {}
+        for player in self.players:
+            road_lengths[player.id]=self.calculate_longest_road_for_player(player.id)
+
+        max_length = max(road_lengths.values())
+        if max_length<5: #in this case no one has the longest path according to the rules
+            changed = False
+            for player in self.players:
+                if player.has_longest_road:
+                    player.has_longest_road=False
+                    player.victory_points -=2
+                    changed = True
+            return changed
+        #here you find all the players with the max length
+        longest_players= [playerid for playerid, length in road_lengths.items() if length == max_length]
+
+        #If there is a tie, the current holder keeps the title
+        current_holder = None
+        for player in self.players:
+            if player.has_longest_road:
+                current_holder= player.id
+                break
+        changed = False
+
+        if len(longest_players)==1:
+            #this means only one person can have the victory points for longest road
+            winner_id= longest_players[0]
+
+            #if a different player has the title, remove it
+            if current_holder is not None and current_holder != winner_id:
+                self.players[current_holder].has_longest_road = False
+                self.players[current_holder].victory_points-=2
+                changed = True
+            #gice the points to the winner
+            if not self.players[winner_id].has_longest_road:
+                self.players[winner_id].has_longest_road = True
+                self.players[winner_id].victory_points+=2
+                changed = True
+            
+        else:
+            #if tie current holder keeps it
+            if current_holder is not None and current_holder not in longest_players:
+                self.players[current_holder].has_longest_road = False
+                self.players[current_holder].victory_points -=2
+                changed = True
+        return changed
+
+    def count_victory_points(self, player_id: int)-> int:
+        """
+        Counting the total victory points for a player
+        returns the total VP for the player"""
+
+        player = self.players[player_id]
+
+        vp=0
+
+        #counting the number of settlements, each one sums 1 vp.
+        settlements= sum (1 for v in self.board.vertices.values() if v.owner == player_id and not v.is_city)
+        vp+=settlements
+
+        #doing the same for cities(count 2 vp each)
+        cities= sum (1 for v in self.board.vertices.values() if v.owner == player_id and v.is_city)
+        vp+=cities*2
+
+        #now we add the longest road bonus if the player has the longest road
+        if player.has_longest_road:
+            vp +=2
+        
+        return vp
+
+    def check_win_conditions(self)-> tuple[bool, Optional[int]]:
+        """Checks if any player reached 10 VP
+        
+        If so, returns a boolean and the id of the winner(if there is one)"""
+
+        for player in self.players:
+            vp= self.count_victory_points(player.id)
+            if vp>=10:
+                return True, player.id
+        return False, None
+
+    def end_of_turn_check(self)-> Optional[int]:
+        """
+        This performs all end of turn calculations.
+        This needs to be called after each player's turn.
+        
+        returns winner id if someone won, else non"""
+
+        #1 longest road update
+        road_changed = self.update_longest_road()
+        if road_changed:
+            print("Longest road holder changed!")
+            for player in self.players:
+                if player.has_longest_road:
+                    print(f"  {player.name} has the longest road")
+        #2 victory points
+        print("\nVictory Points:")
+        for player in self.players:
+            vp = self.count_victory_points(player.id)
+            player.victory_points = vp  # Update stored VP
+            print(f"  {player.name}: {vp} VP")
+        # 3 Check win condition
+        has_winner, winner_id = self.check_win_conditions()
+        if has_winner:
+            winner = self.players[winner_id]
+            print(f" {winner.name} wins with {winner.victory_points} victory points")
+            self.current_phase = GamePhase.GAME_OVER
+            return winner_id
+        return None
 class GameSetup:
     """the pre-game setup logic"""
     def __init__(self):
@@ -451,184 +629,3 @@ class GameSetup:
 
         return self.game            
     
-    def calculate_longest_road_for_player(self, player_id: int)-> int:
-        """
-        This method calculates the longest road for a specific player using DFS.
-        It then returns the length of the longest continuous road
-        """
-        #getting all the edges owned by the player that has been passed in to the method.
-        player_edges=[edgeid for edgeid, edge in self.board.edges.items() if edge.owner == player_id]
-        if len(player_edges)<5: #the player needs at least 5 roads to be considered for the longest road
-            return 0
-        
-        #here we need to build an adjacency list of vertices (undirected) connected by player's roads. 
-        #for each owned edge, we ensure both endpoints exist in the dict, then add each to the other's neighbour list
-        road_graph={}
-        for edgeid in player_edges:
-            edge = self.board.edges[edgeid]
-            if edge.v1 not in road_graph:
-                road_graph[edge.v1]= []
-            if edge.v2 not in road_graph:
-                road_graph[edge.v2]= []
-            road_graph[edge.v1].append(edge.v2)
-            road_graph[edge.v2].append(edge.v1)
-        
-        #DFS to find the longest path
-        
-    # DFS to find longest path
-        def dfs(vertex: str, visited_edges: set) -> int:
-            """DFS to find longest road from this vertex
-            visited_edges tracks which edges have been used on the current path(this is used to prevent reusing an edge and inflating length via cycles or zigzags)
-            """
-            max_length = 0
-            
-            for neighbor in road_graph.get(vertex, []):
-                # here we are checking if we can traverse the edge we're on right now
-                edge_key = tuple(sorted([vertex, neighbor])) #we sort them so (a,b) is the same as (b,a)
-                
-                if edge_key not in visited_edges: #only proceed if thee edge has not already been visited
-                    # Here we Check if there is a neighbour vertex that blocks the path
-                    neighbor_vertex = self.board.vertices[neighbor]
-                    if neighbor_vertex.owner is not None and neighbor_vertex.owner != player_id:
-                        continue  # If this is the case we can't continue counting through opponent's settlement
-                    
-                    # Marking edge as visited and using recursion to go through the entire length
-                    visited_edges.add(edge_key)
-                    length = 1 + dfs(neighbor, visited_edges)
-                    max_length = max(max_length, length)
-                    visited_edges.remove(edge_key)
-            
-            return max_length
-        
-        # Try starting from each vertex in the road network
-        longest = 0
-        for start_vertex in road_graph.keys():
-            # Check if this vertex blocks us (opponent's settlement)
-            vertex = self.board.vertices[start_vertex]
-            if vertex.owner is not None and vertex.owner != player_id:
-                continue
-            
-            length = dfs(start_vertex, set())
-            longest = max(longest, length)
-        
-        return longest
-def update_longest_road(self)-> bool:
-    """
-    This method serves to calculate the longest road for all players and award the longeest road bonus.
-    Returns True if longest road holder changed.
-    """
-    #Calculate longest road for each player
-    road_lengths= {}
-    for player in self.players:
-        road_lengths[player.id]=self.calculate_longest_road_for_player(player.id)
-
-    max_length = max(road_lengths.values())
-    if max_length<5: #in this case no one has the longest path according to the rules
-        changed = False
-        for player in self.players:
-            if player.has_longest_road:
-                player.has_longest_road=False
-                player.victory_points -=2
-                changed = True
-        return changed
-    #here you find all the players with the max length
-    longest_players= [playerid for playerid, length in road_lengths.items() if length == max_length]
-
-    #If there is a tie, the current holder keeps the title
-    current_holder = None
-    for player in self.players:
-        if player.has_longest_road:
-            current_holder= player.id
-            break
-    changed = False
-
-    if len(longest_players)==1:
-        #this means only one person can have the victory points for longest road
-        winner_id= longest_players[0]
-
-        #if a different player has the title, remove it
-        if current_holder is not None and current_holder != winner_id:
-            self.players[current_holder].has_longest_road = False
-            self.players[current_holder].victory_points-=2
-            changed = True
-        #gice the points to the winner
-        if not self.players[winner_id].has_longest_road:
-            self.players[winner_id].has_longest_road = True
-            self.players[winner_id].victory_points+=2
-            changed = True
-            
-    else:
-        #if tie current holder keeps it
-        if current_holder is not None and current_holder not in longest_players:
-            self.players[current_holder].has_longest_road = False
-            self.players[current_holder].victory_points -=2
-            changed = True
-    return changed
-
-def count_victory_points(self, player_id: int)-> int:
-    """
-    Counting the total victory points for a player
-    returns the total VP for the player"""
-
-    player = self.players[player_id]
-
-    vp=0
-
-    #counting the number of settlements, each one sums 1 vp.
-    settlements= sum (1 for v in self.board.vertices.values() if v.owner == player_id and not v.is_city)
-    vp+=settlements
-
-    #doing the same for cities(count 2 vp each)
-    cities= sum (1 for v in self.board.vertices.values() if v.owner == player_id and v.is_city)
-    vp+=cities*2
-
-    #now we add the longest road bonus if the player has the longest road
-    if player.has_longest_road:
-        vp +=2
-        
-    return vp
-
-def check_win_conditions(self)-> tuple[bool, Optional[int]]:
-    """Checks if any player reached 10 VP
-    
-    If so, returns a boolean and the id of the winner(if there is one)"""
-
-    for player in self.players:
-        vp= self.count_victory_points(player.id)
-        if vp>=10:
-            return True, player.id
-    return False, None
-
-
-
-
-
-
-def end_of_turn_check(self)-> Optional[int]:
-    """
-    This performs all end of turn calculations.
-    This needs to be called after each player's turn.
-    
-    returns winner id if someone won, else non"""
-
-    #1 longest road update
-    road_changed = self.update_longest_road()
-    if road_changed:
-        print("Longest road holder changed!")
-        for player in self.players:
-            if player.has_longest_road:
-                print(f"  {player.name} has the longest road")
-    #2 victory points
-    print("\nVictory Points:")
-    for player in self.players:
-        vp = self.count_victory_points(player.id)
-        player.victory_points = vp  # Update stored VP
-        print(f"  {player.name}: {vp} VP")
-    # 3 Check win condition
-    has_winner, winner_id = self.check_win_condition()
-    if has_winner:
-        winner = self.players[winner_id]
-        print(f" {winner.name} wins with {winner.victory_points} victory points")
-        self.current_phase = GamePhase.GAME_OVER
-        return winner_id
-    return None
