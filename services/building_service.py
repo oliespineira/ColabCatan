@@ -1,10 +1,23 @@
 """
 Building service for roads and settlements.
-This module handles the actual building logic and updates the game state.
 
-- Building roads (CPU shortest path algorithm)
-- Building settlements (updating them)
-- Using multidimensional arrays for resource location checking
+Algorithms referenced:
+- Rule validation delegates to local adjacency scans (`O(deg(v))`).
+- CPU road planning uses Dijkstra (`O(E log V)`) via the `Pathfinding` helper.
+- Settlement scoring leverages heuristic evaluation plus cached resource maps
+  for near-constant lookups.
+
+Method time complexities:
+- `build_road`: `O(1)` beyond delegated rule checks.
+- `build_settlement`: `O(1)` beyond delegated rule checks.
+- `upgrade_to_city`: `O(1)`.
+- `cpu_build_road`: `O(E log V + H * V)` through pathfinding.
+- `cpu_build_settlement`: `O(B log B)` for scoring `B` buildable vertices.
+- `_find_buildable_vertices`: `O(B * deg)` bounded by connected frontier size.
+- `_score_settlement_location`: `O(k)` where `k` is adjacent hex count (≤3).
+- `_build_resource_map`: `O(H * V)` preprocessing.
+- `get_vertices_with_resource`: `O(T)` where `T` is count cached for resource.
+- `find_best_settlement_for_resource`: `O(B log B)` sorting buildable targets.
 """
 
 from typing import Dict, List, Optional, Tuple
