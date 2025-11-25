@@ -791,39 +791,122 @@ class GameSetup:
         if not self.building_service:
             return
 
-        # Loop allows multiple actions per turn
+        """we kinda have to show the player what they have, they odnt have cards like in the physical game"""
+
+        print(f"{player.name}'s Turn")
+   
+        
+        # Show current resources
+        print("\nYour Resources:")
+        for resource, amount in player.resources.items():
+            #here we only show resources that are greater than 0
+            if amount > 0:
+                print(f"  {resource.name}: {amount}")
+        
+        print(f"\nVictory Points: {player.victory_points}")
+        print(f"Settlements: {player.settlements_remaining} remaining")
+        print(f"Cities: {player.cities_remaining} remaining")
+        print(f"Roads: {player.roads_remaining} remaining")
+        
+        # Show what they can afford
+        print("\nYou can afford:")
+        affordable = []
+        
+        if player.has_resources({Resource.BRICK: 1, Resource.LUMBER: 1}):
+            affordable.append("Road")
+        if player.has_resources({Resource.BRICK: 1, Resource.LUMBER: 1, 
+                                Resource.GRAIN: 1, Resource.WOOL: 1}):
+            affordable.append("Settlement")
+        if player.has_resources({Resource.GRAIN: 2, Resource.ORE: 3}):
+            affordable.append("City")
+        
+        if affordable:
+            print(f"  {', '.join(affordable)}")
+        else:
+            print("  Nothing (need more resources)")
+
+        # Loop allows multiple actions per turn. Slay
+    # Action loop
         while True:
-            # Step 1: Get action choice
-            action = input("Choose action [road/settlement/city/pass]: ").strip().lower()
-            
-            # Step 2: Handle pass action
+            print("\n" + "-"*60)
+            action = input("Action [road/settlement/city/pass/help]: ").strip().lower()
+
+            if not action:
+                print("Please enter an action.")
+                continue
+            #were nice developers and we give the player help if they ask for it.
+            if action in {"help", "h", "?"}:
+                print("\nAvailable Actions:")
+                print("  road - Build a road (costs: 1 Brick, 1 Lumber)")
+                print("  settlement - Build a settlement (costs: 1 Brick, 1 Lumber, 1 Grain, 1 Wool)")
+                print("  city - Upgrade settlement to city (costs: 2 Grain, 3 Ore)")
+                print("  pass - End your turn")
+                continue
+            # If the player passes (or hits enter), end the turn.
             if action in {"pass", "p", ""}:
                 print("Turn ended.")
                 break
             
-            # Step 3: Handle road building
             elif action in {"road", "r"}:
-                edge_id = self._prompt_edge_id()
+                # Show available edges
+                connected = self.building_service.pathfinding.get_player_connected_vertices(player.id)
+                print(f"\nYou're connected to vertices: {', '.join(connected)}")# Show connected vertices to help them choose where to build.
+                
+                edge_id = self._prompt_edge_id() # Ask the user for an edge ID using a helper method.
                 if edge_id is None:
                     continue
+                # Attempt to build the road via the building service.
+
                 success, message = self.building_service.build_road(player.id, edge_id)
-                print(message)
+                print(f"\n>>> {message}")
+                
+                if success:
+                    # Ask if they want to do more
+                    more = input("\nBuild something else? (y/n): ").lower().strip()
+                    if more != 'y':
+                        break
             
-            # Step 4: Handle settlement building
             elif action in {"settlement", "s"}:
+                # Show buildable vertices
+                buildable = self.building_service._find_buildable_vertices(player.id)
+                if buildable:
+                    print(f"\nBuildable vertices: {', '.join(buildable[:10])}")
+                    if len(buildable) > 10:
+                        print(f"  ... and {len(buildable) - 10} more")
+                
                 vertex_id = input("Enter vertex ID: ").strip()
                 success, message = self.building_service.build_settlement(player.id, vertex_id)
-                print(message)
+                print(f"\n>>> {message}")
+                
+                if success:
+                    more = input("\nBuild something else? (y/n): ").lower().strip()
+                    if more != 'y':
+                        break
             
-            # Step 5: Handle city upgrade
             elif action in {"city", "c"}:
+                # Show upgradeable settlements
+                upgradeable = []
+                for vertex_id, vertex in self.game.board.vertices.items():
+                    if vertex.owner == player.id and not vertex.is_city:
+                        upgradeable.append(vertex_id)
+                
+                if upgradeable:
+                    print(f"\nYour settlements: {', '.join(upgradeable)}")
+                else:
+                    print("\nYou have no settlements to upgrade.")
+                    continue
+                
                 vertex_id = input("Enter vertex ID to upgrade: ").strip()
                 success, message = self.building_service.upgrade_to_city(player.id, vertex_id)
-                print(message)
+                print(f"\n>>> {message}")
+                
+                if success:
+                    more = input("\nBuild something else? (y/n): ").lower().strip()
+                    if more != 'y':
+                        break
             
-            # Step 6: Handle invalid input
             else:
-                print("Unknown action. Please enter road/settlement/city/pass.")
+                print("Unknown action. Type 'help' for available actions.")
 
     def _run_cpu_turn(self, player: Player):
         """
@@ -873,3 +956,203 @@ class GameSetup:
         except ValueError:
             print("Edge ID must be an integer.")
             return None
+
+
+    def display_board_info(self):
+        """were super nice deveoples and we actually display board information"""
+        if not self.game:#if the game is not set up, we return
+            return
+        
+        print("\n Board Information:")
+        print("\nVertex IDs (sample):")
+        vertices = list(self.game.board.vertices.keys())
+        print(f"  {', '.join(vertices[:20])}")
+        if len(vertices) > 20:
+            print(f"  ... and {len(vertices) - 20} more vertices")
+        
+        print("\nEdge IDs (sample):")
+        edges = list(self.game.board.edges.keys())
+        print(f"  {', '.join(map(str, edges[:20]))}")
+        if len(edges) > 20:
+            print(f"  ... and {len(edges) - 20} more edges")
+        
+        print("\nHex Resources:")
+        for hex_id, hex_tile in sorted(self.game.board.hexes.items())[:10]:
+            if hex_tile.resource:
+                print(f"  Hex {hex_id}: {hex_tile.resource.name} (dice: {hex_tile.number})")
+
+    def interactive_initial_placement(self) -> bool:
+        """
+        Guide players through initial placement interactively.
+        Returns True if successful, False if cancelled.
+        """
+        if not self.game:
+            return False
+        
+        self.display_board_info()
+        
+        # First round (forward)
+        print("\n=== FIRST SETTLEMENT ROUND ===")
+        print("Each player places one settlement and one road.")
+        
+        for i in range(len(self.game.players)):
+            player = self.game.get_current_player()
+            print(f"\n{player.name}'s placement:")
+            
+            if player.is_cpu:
+                # Simple CPU placement - just use first available
+                available_vertices = list(self.game.board.vertices.keys())
+                for vertex_id in available_vertices:
+                    can_place, _ = self.can_place_initial_settlement(player.id, vertex_id)
+                    if can_place:
+                        # Find a valid road
+                        vertex = self.game.board.vertices[vertex_id]
+                        for edge_id in vertex.edge_ids:
+                            edge = self.game.board.edges[edge_id]
+                            if edge.owner is None:
+                                print(f"  CPU places: Settlement at {vertex_id}, Road at {edge_id}")
+                                self.complete_initial_placement(vertex_id, edge_id)
+                                break
+                        break
+            else:
+                # Human placement with validation
+                while True:
+                    vertex_id = input("  Enter settlement vertex ID: ").strip()
+                    can_place, reason = self.can_place_initial_settlement(player.id, vertex_id)
+                    
+                    if not can_place:
+                        print(f"  Cannot place: {reason}")
+                        retry = input("  Try again? (y/n): ").lower().strip()
+                        if retry != 'y':
+                            return False
+                        continue
+                    
+                    # Show available edges for this vertex
+                    vertex = self.game.board.vertices.get(vertex_id)
+                    if vertex:
+                        print(f"  Available edges from {vertex_id}: {vertex.edge_ids}")
+                    
+                    try:
+                        edge_id = int(input("  Enter road edge ID: "))
+                    except ValueError:
+                        print("  Invalid edge ID. Must be a number.")
+                        continue
+                    
+                    can_place_road, reason = self.can_place_initial_road(player.id, vertex_id, edge_id)
+                    if not can_place_road:
+                        print(f"  Cannot place road: {reason}")
+                        continue
+                    
+                    # Valid placement
+                    success = self.complete_initial_placement(vertex_id, edge_id)
+                    if success:
+                        print(f"  ✓ Placed settlement at {vertex_id} and road at {edge_id}")
+                        break
+                    else:
+                        print("  Placement failed. Try again.")
+        
+        # Second round (reverse/snake)
+        print("\n=== SECOND SETTLEMENT ROUND (REVERSE ORDER) ===")
+        
+        for i in range(len(self.game.players)):
+            player = self.game.get_current_player()
+            print(f"\n{player.name}'s placement:")
+            
+            if player.is_cpu:
+                available_vertices = list(self.game.board.vertices.keys())
+                for vertex_id in available_vertices:
+                    can_place, _ = self.can_place_initial_settlement(player.id, vertex_id)
+                    if can_place:
+                        vertex = self.game.board.vertices[vertex_id]
+                        for edge_id in vertex.edge_ids:
+                            edge = self.game.board.edges[edge_id]
+                            if edge.owner is None:
+                                print(f"  CPU places: Settlement at {vertex_id}, Road at {edge_id}")
+                                self.complete_initial_placement(vertex_id, edge_id)
+                                break
+                        break
+            else:
+                while True:
+                    vertex_id = input("  Enter settlement vertex ID: ").strip()
+                    can_place, reason = self.can_place_initial_settlement(player.id, vertex_id)
+                    
+                    if not can_place:
+                        print(f"  Cannot place: {reason}")
+                        continue
+                    
+                    vertex = self.game.board.vertices.get(vertex_id)
+                    if vertex:
+                        print(f"  Available edges from {vertex_id}: {vertex.edge_ids}")
+                    
+                    try:
+                        edge_id = int(input("  Enter road edge ID: "))
+                    except ValueError:
+                        print("  Invalid edge ID.")
+                        continue
+                    
+                    can_place_road, reason = self.can_place_initial_road(player.id, vertex_id, edge_id)
+                    if not can_place_road:
+                        print(f"  Cannot place road: {reason}")
+                        continue
+                    
+                    success = self.complete_initial_placement(vertex_id, edge_id)
+                    if success:
+                        print(f"  ✓ Placed settlement at {vertex_id} and road at {edge_id}")
+                        break
+        
+        return True
+
+
+    
+def run_interactive_game(self):
+    """
+    Run a fully interactive game from start to finish.
+    """
+    print("=== CATAN GAME SETUP ===\n")
+    
+    # Get players
+    num_players = int(input("Number of players (3-4): "))
+    player_names = []
+    player_colours = []
+    cpu_flags = []
+    
+    colours = ["red", "blue", "white", "orange"]
+    
+    for i in range(num_players):
+        name = input(f"Player {i+1} name: ")
+        player_names.append(name)
+        
+        is_cpu = input(f"Is {name} a CPU? (y/n): ").lower() == 'y'
+        cpu_flags.append(is_cpu)
+        
+        print(f"Available colours: {colours}")
+        colour = input(f"Colour for {name}: ")
+        player_colours.append(colour)
+        colours.remove(colour)
+    
+    # Create game
+    self.create_game(player_names, player_colours, cpu_flags)
+    print("\n✓ Game created")
+    
+    # Determine turn order
+    print("\n=== TURN ORDER ===")
+    order = self.determine_turn_order()
+    for name, roll in order:
+        print(f"  {name}: {roll}")
+    
+    # Initial placement
+    if not self.interactive_initial_placement():
+        print("Game cancelled.")
+        return
+    
+    # Distribute resources
+    self.distribute_initial_resources()
+    print("\n✓ Initial resources distributed")
+    
+    # Main game
+    print("\n=== MAIN GAME ===")
+    self.run_main_game_loop(max_turns=200)
+    
+    # Game over
+    winner = max(self.game.players, key=lambda p: p.victory_points)
+    print(f"\n🏆 {winner.name} WINS with {winner.victory_points} victory points!")

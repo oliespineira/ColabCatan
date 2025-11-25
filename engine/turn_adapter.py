@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import Counter
 from typing import Dict, Optional, Tuple, TYPE_CHECKING
 
-from model.enums import Resource
+from ..model.enums import Resource
 
 if TYPE_CHECKING:  # pragma: no cover - type-checking only
-    from model.game import GameState, Player
+    from ..model.game import GameState, Player
 
 from .turn_engine import (
     BoardSnapshot,

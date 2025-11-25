@@ -20,12 +20,14 @@ Method time complexities:
 - `find_best_settlement_for_resource`: `O(B log B)` sorting buildable targets.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 from ..model.board import BoardGraph
-from ..model.game import GameState, Player
 from ..model.enums import Resource
 from ..rules.building_rules import BuildingRules
 from ..search.pathfinding import Pathfinding
+
+if TYPE_CHECKING:
+    from ..model.game import GameState, Player
 
 
 class BuildingService:
@@ -34,7 +36,7 @@ class BuildingService:
     Handles both player and CPU building logic.
     """
     
-    def __init__(self, game_state: GameState):
+    def __init__(self, game_state: 'GameState'):
         self.game = game_state
         self.board = game_state.board
         self.rules = BuildingRules(game_state)

@@ -23,16 +23,18 @@ Rule recap:
   supply.
 """
 
-from typing import Tuple, Optional
+from typing import Tuple, Optional, TYPE_CHECKING
 from ..model.board import BoardGraph, Vertex, Edge
-from ..model.game import GameState, Player
 from ..model.enums import Resource
+
+if TYPE_CHECKING:
+    from ..model.game import GameState, Player
 
 
 class BuildingRules:
     """Validates building rules for roads, settlements, and cities."""
     
-    def __init__(self, game_state: GameState):
+    def __init__(self, game_state: 'GameState'):
         self.game = game_state
         self.board = game_state.board
     
