@@ -21,6 +21,7 @@ from enum import Enum
 from .board import BoardGraph, create_standard_board, Vertex, Edge
 from .enums import Resource
 from ..services.building_service import BuildingService
+from ..engine.turn_adapter import TurnEngineAdapter
 
 
 class GamePhase(Enum):
@@ -127,7 +128,7 @@ class GameState:
     setup_placements: list[tuple[int, str, str]] = field(default_factory=list)
 
     # Dice and robber tracking
-    last_dice_roll: Tuple[int, int] | None = None
+    last_dice_total: int | None = None
     robber_hex_id: int = 11  # Default robber position
 
     def get_current_player(self) -> Player:
@@ -188,6 +189,7 @@ class GameSetup:
         """Initialise the game setup with empty game state and building service."""
         self.game: GameState | None = None
         self.building_service: Optional[BuildingService] = None
+        self.turn_engine_adapter: Optional[TurnEngineAdapter] = None
 
     def create_game(
         self,
@@ -251,6 +253,7 @@ class GameSetup:
         
         # Step 7: Create building service for main game integration
         self.building_service = BuildingService(self.game)
+        self.turn_engine_adapter = TurnEngineAdapter(self.game)
         return self.game
     
     def determine_turn_order(self) -> list[tuple[str, int]]:
@@ -306,10 +309,10 @@ class GameSetup:
 
         # Step 6: Set turn order and advance phase
         self.game.turn_order = [player.id for player, _ in rolls]
-            self.game.current_phase = GamePhase.FIRST_SETTLEMENT_ROUND
-            self.game.current_player_idx = 0
+        self.game.current_phase = GamePhase.FIRST_SETTLEMENT_ROUND
+        self.game.current_player_idx = 0
 
-            return [(player.name, roll) for player, roll in rolls]
+        return [(player.name, roll) for player, roll in rolls]
         
     def _roll_dice(self) -> tuple[int, int]:
         """
@@ -550,14 +553,14 @@ class GameSetup:
         for player_id, settlement_vertex, _ in second_settlements:
             player = self.game.players[player_id]
             vertex = self.game.board.vertices[settlement_vertex]
-        
+
             # Step 3: Award resources from adjacent hexes
-        for hex_id in vertex.hex_ids:
-            hex_tile = self.game.board.hexes[hex_id]
+            for hex_id in vertex.hex_ids:
+                hex_tile = self.game.board.hexes[hex_id]
 
                 # Only award if hex produces resources (not desert)
                 if hex_tile.resource is not None:
-                player.add_resource(hex_tile.resource, 1)
+                    player.add_resource(hex_tile.resource, 1)
                     print(f"{player.name} receives 1 {hex_tile.resource.value} from hex {hex_id}")
 
         print("The initial resources were distributed")
@@ -692,11 +695,13 @@ class GameSetup:
         # Step 4: Main game loop
         turn_counter = 0
         while self.game.current_phase == GamePhase.MAIN_GAME and turn_counter < max_turns:
-            # Step 4a: Get current player
             player = self.game.get_current_player()
             print(f"\n--- Turn {turn_counter + 1}: {player.name} ({'CPU' if player.is_cpu else 'Human'}) ---")
-            
-            # Step 4b: Display resources
+
+            dice_events = self._execute_dice_phase(player)
+            if dice_events:
+                self._summarise_dice_events(player, dice_events)
+
             self._print_player_resources()
 
             # Step 4c: Run appropriate turn handler
@@ -718,6 +723,53 @@ class GameSetup:
         # Step 5: End game message
         if self.game.current_phase == GamePhase.MAIN_GAME:
             print("Main game loop ended (turn limit reached).")
+
+    def _ensure_turn_engine_adapter(self) -> TurnEngineAdapter:
+        if not self.game:
+            raise ValueError("Game not created")
+        if self.turn_engine_adapter is None:
+            self.turn_engine_adapter = TurnEngineAdapter(self.game)
+        return self.turn_engine_adapter
+
+    def _execute_dice_phase(self, player: Player) -> Optional[Dict[str, object]]:
+        if not self.game:
+            return None
+        adapter = self._ensure_turn_engine_adapter()
+        events = adapter.run_dice_phase(player.id)
+        self.game.last_dice_total = events["roll"]
+        return events
+
+    def _summarise_dice_events(self, player: Player, events: Dict[str, object]) -> None:
+        roll = events["roll"]
+        print(f"{player.name} rolled {roll}")
+
+        if roll == 7:
+            discards = events.get("discards", {})
+            if discards:
+                for pid, removed in discards.items():
+                    victim = self.game.players[int(pid)]
+                    print(f"  {victim.name} discarded {removed}")
+
+            robber_info = events.get("robber", {})
+            if robber_info:
+                print(f"  Robber moved to hex {robber_info.get('moved_to')}")
+
+            steal_info = events.get("steal", {})
+            if steal_info and steal_info.get("from"):
+                thief = player.name
+                victim = self.game.players[int(steal_info["from"])].name
+                resource = steal_info.get("resource")
+                print(f"  {thief} stole 1 {resource} from {victim}")
+            return
+
+        gains = events.get("gains", {})
+        if not gains:
+            print("  No one produced resources.")
+            return
+        for pid, resources in gains.items():
+            target_player = self.game.players[int(pid)]
+            gains_str = ", ".join(f"{amt} {res}" for res, amt in resources.items())
+            print(f"  {target_player.name} gains {gains_str}")
 
     def _run_human_turn(self, player: Player):
         """
