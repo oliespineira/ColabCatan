@@ -14,6 +14,7 @@ HINT: Use `auto()` to automatically assign numbers to each type.
 """
 
 from enum import Enum, auto
+from typing import Optional
 
 
 class Resource(Enum):
@@ -28,6 +29,23 @@ class Resource(Enum):
     GRAIN = auto()
     WOOL = auto()
     DESERT = auto()
+
+    @classmethod
+    def from_string(cls, value: str) -> Optional["Resource"]:
+        """Map lowercase board resource strings to enum values (desert -> None)."""
+        mapping = {
+            "hill": cls.BRICK,
+            "forest": cls.LUMBER,
+            "mountain": cls.ORE,
+            "field": cls.GRAIN,
+            "pasture": cls.WOOL,
+            "desert": None,
+        }
+        key = value.lower()
+        if key not in mapping:
+            raise ValueError(f"Unknown resource string: {value}")
+        return mapping[key]
+
 
 class PortKind(Enum):
     """
