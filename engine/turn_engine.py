@@ -20,6 +20,13 @@ class PlayerView:
     resources: Counter = field(default_factory=Counter)
 
     def total_cards(self) -> int:
+        """
+        Count total resource cards.
+        
+        Time Complexity: O(k) where k = number of unique resource types (typically 5)
+        - Counter iteration: O(k)
+        - Space: O(1)
+        """
         return sum(self.resources.values())
 
     def add(self, res: Resource, n: int = 1) -> None:
@@ -35,6 +42,15 @@ class PlayerView:
         return False
 
     def remove_random_cards(self, n: int) -> Counter:
+        """
+        Remove n random cards from player's resources.
+        
+        Time Complexity: O(n * C) where C = total cards
+        - Creates weighted pool each iteration: O(C)
+        - Random selection: O(1)
+        - Worst case: O(n * C) if pool rebuilt each time
+        - Space: O(C) for pool creation
+        """
         removed = Counter()
         for _ in range(n):
             if not self.resources:
@@ -81,11 +97,26 @@ def default_choose_discard(player: PlayerView, n: int) -> Counter:
 
 
 def default_choose_victim(candidates: Iterable[PlayerView]) -> Optional[PlayerView]:
+    """
+    Random victim selection for robber.
+    
+    Time Complexity: O(P) where P = number of candidates
+    - Linear scan to filter: O(P)
+    - Random choice: O(1)
+    """
     cands = [p for p in candidates if p.total_cards() > 0]
     return random.choice(cands) if cands else None
 
 
 def default_choose_steal_resource(victim: PlayerView) -> Optional[Resource]:
+    """
+    Random resource selection from victim.
+    
+    Time Complexity: O(C) where C = total cards victim has
+    - Creates weighted pool: O(C)
+    - Random choice: O(1)
+    - Space: O(C) for pool
+    """
     if victim.total_cards() == 0:
         return None
     pool = [r for r, cnt in victim.resources.items() for _ in range(cnt)]
@@ -116,6 +147,15 @@ class TurnEngine:
         return random.randint(1, 6) + random.randint(1, 6)
 
     def distribute_resources(self, roll: int) -> Dict[PlayerID, Counter]:
+        """
+        Distribute resources to players based on dice roll.
+        
+        Time Complexity: O(T * V) where T = tiles, V = vertices per tile
+        - Iterates through all tiles: O(T)
+        - For each tile, checks vertices: O(V) where V ≈ 6 per tile
+        - Counter operations: O(1) average
+        - Space: O(P * R) where P = players, R = resource types
+        """
         gained: Dict[PlayerID, Counter] = defaultdict(Counter)
 
         for tile in self.board.tiles.values():
@@ -213,4 +253,3 @@ __all__ = [
     "default_choose_victim",
     "default_choose_steal_resource",
 ]
-

@@ -164,6 +164,10 @@ class BuildingRules:
         A vertex is connected if:
         - It has a settlement/city owned by the player, OR
         - It's connected by a road owned by the player to such a vertex
+        
+        Time Complexity: O(deg(v)) where deg(v) = vertex degree (typically 2-3 in Catan)
+        - Graph traversal through adjacent edges
+        - Space: O(1)
         """
         vertex = self.board.vertices.get(vertex_id)
         if not vertex:
@@ -188,6 +192,10 @@ class BuildingRules:
     def _is_vertex_connected_by_road(self, player_id: int, vertex_id: str) -> bool:
         """
         Check if a vertex is connected by at least one road owned by the player.
+        
+        Time Complexity: O(deg(v)) - checks adjacent edges
+        - Graph traversal through vertex edge list
+        - Space: O(1)
         """
         vertex = self.board.vertices.get(vertex_id)
         if not vertex:
@@ -205,6 +213,10 @@ class BuildingRules:
         """
         Check the distance rule: no settlement/city within 2 edges.
         This means no adjacent vertex can have a settlement/city.
+        
+        Time Complexity: O(deg(v)) - visits all neighbor vertices once
+        - Graph traversal through neighbors
+        - Space: O(1)
         """
         vertex = self.board.vertices.get(vertex_id)
         if not vertex:

@@ -268,6 +268,12 @@ class GameSetup:
         5. Sort players by roll (descending)
         6. Set turn order and advance to first settlement round
         
+        Time Complexity: O(P × R + P log P)
+        - P = number of players (3-4)
+        - R = expected re-rolls (typically small, geometric distribution)
+        - Sorting: O(P log P) using Timsort
+        - Tie resolution: O(P × R) worst case, O(P) average
+        
         Returns:
             List of tuples (player_name, final_roll_value) in turn order
         """
@@ -305,6 +311,7 @@ class GameSetup:
             highest_rollers = [r for r in new_rolls if r[1] == max_roll]
 
         # Step 5: Sort all players by their final roll (descending order)
+        # Algorithm: Timsort - O(P log P) average and worst case
         rolls.sort(key=lambda x: x[1], reverse=True)
 
         # Step 6: Set turn order and advance phase
@@ -317,6 +324,8 @@ class GameSetup:
     def _roll_dice(self) -> tuple[int, int]:
         """
         Roll two six-sided dice.
+        
+        Time Complexity: O(1) - constant time random number generation
         
         Returns:
             Tuple of (die1, die2) with values 1-6 each

@@ -6,6 +6,11 @@ class Dice:
         self.last_roll = (0, 0)
 
     def roll(self):
+        """
+        Roll two six-sided dice.
+        
+        Time Complexity: O(1) - constant time random number generation
+        """
         die1 = random.randint(1, 6)
         die2 = random.randint(1, 6)
         total = die1 + die2

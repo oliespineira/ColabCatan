@@ -175,6 +175,11 @@ class BuildingService:
         CPU builds a settlement at a strategic location.
         Uses multidimensional array to quickly find vertices with desired resources.
         
+        Time Complexity: O(B log B) where B = buildable vertices
+        - Finding buildable vertices: O(B * deg(v))
+        - Scoring: O(B * k) where k = adjacent hexes (≤3)
+        - Sorting: O(B log B) using Timsort
+        
         Args:
             player_id: ID of the CPU player
             preferred_resources: List of resources to prioritize (if None, finds any valid location)
@@ -194,7 +199,7 @@ class BuildingService:
             score = self._score_settlement_location(vertex_id, preferred_resources)
             scored_vertices.append((score, vertex_id))
         
-        # Sort by score (highest first)
+        # Sort by score (highest first) - O(B log B) using Timsort
         scored_vertices.sort(reverse=True, key=lambda x: x[0])
         
         # Try to build at the best location
@@ -264,6 +269,10 @@ class BuildingService:
         Structure: resource -> hex_id -> list of vertex_ids
         
         This allows O(1) lookup of which vertices are adjacent to hexes with a specific resource.
+        
+        Time Complexity: O(H * V) where H = hexes (19), V = vertices (54)
+        - Preprocessing step done once during initialization
+        - Space: O(H * V) in worst case, typically much less
         """
         self._resource_location_map = {}
         
@@ -286,6 +295,11 @@ class BuildingService:
         """
         Quickly get all vertices adjacent to hexes with the given resource.
         Uses the multidimensional array for O(1) lookup.
+        
+        Time Complexity: O(T) where T = number of target vertices for resource
+        - Dictionary lookup: O(1)
+        - Iterating cached results: O(T)
+        - Space: O(T) for result list
         """
         vertices = []
         if resource in self._resource_location_map:

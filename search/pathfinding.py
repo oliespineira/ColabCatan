@@ -44,6 +44,10 @@ class Pathfinding:
         
         Uses Dijkstra's algorithm with edge weights of 1.
         
+        Time Complexity: O(H * V + E log V)
+        - Resource scanning: O(H * V)
+        - Dijkstra: O(E log V)
+        
         Args:
             start_vertices: List of vertex IDs where the player can start building
             target_resource: The resource type to find
@@ -71,6 +75,8 @@ class Pathfinding:
         """
         Find the shortest path from any starting vertex to a target vertex.
         
+        Time Complexity: O(E log V) - pure Dijkstra run
+        
         Args:
             start_vertices: List of vertex IDs where the player can start building
             target_vertex: The target vertex ID
@@ -89,6 +95,12 @@ class Pathfinding:
     ) -> Optional[Tuple[List[int], int]]:
         """
         Dijkstra's algorithm to find shortest path from any start to any target.
+        
+        Time Complexity: O(E log V) average and worst case
+        - Uses binary heap (heapq) as priority queue
+        - Each edge explored at most once: O(E)
+        - Heap operations: O(log V) per edge
+        - Space: O(V) for visited set and priority queue
         
         Returns:
             Tuple of (path_edges: List[int], distance: int) or None
@@ -142,6 +154,11 @@ class Pathfinding:
         """
         Find all vertices that are adjacent to at least one hex producing the given resource.
         
+        Time Complexity: O(H * V) average and worst case
+        - H = number of hexes (19 in Catan)
+        - V = number of vertices (54 in Catan)
+        - Scans all vertices for each resource hex
+        
         Returns:
             List of vertex IDs
         """
@@ -168,6 +185,12 @@ class Pathfinding:
         """
         Get all vertices that are connected to the player's road network.
         This includes vertices with settlements/cities and vertices reachable by roads.
+        
+        Algorithm: Breadth-First Search (BFS)
+        Time Complexity: O(V + E) average and worst case
+        - V = vertices, E = edges
+        - Uses deque for queue operations
+        - Space: O(V) for visited set and queue
         
         Returns:
             List of vertex IDs

@@ -170,6 +170,13 @@ class CPUPlayer:
 
     # Step 1: Generate all possible moves it could do
     def generate_candidate_actions(self) -> List[CPUAction]:
+        """
+        Generate all possible actions the CPU can take.
+        
+        Time Complexity: O(A) where A = number of candidate actions
+        - Linear scan through legal moves (settlements, roads, cities, trades, etc.)
+        - Space: O(A) for action list
+        """
         player_id = self.rules.current_player_id()
         actions: List[CPUAction] = []
 
@@ -239,6 +246,14 @@ class CPUPlayer:
 
     # Step 2: Assign a score to each action
     def score_action(self, action: CPUAction) -> float:
+        """
+        Heuristic scoring algorithm for CPU actions.
+        
+        Time Complexity: 
+        - Average: O(1) for most actions (constant-time scoring)
+        - Worst: O(O) for bank trades where O = number of opponents
+        - Uses weighted multi-factor scoring system
+        """
         phase = self.rules.game_phase()
         player_id = self.rules.current_player_id()
         weights = self.weights
@@ -363,6 +378,13 @@ class CPUPlayer:
         Main decision point.
         Creates a priority queue, scores every action, and returns the one
         with the highest score.
+        
+        Algorithm: Priority Queue (Heap) - uses min-heap with negated scores to simulate max-heap
+        Time Complexity: O(A log A) average and worst case
+        - A = number of candidate actions
+        - Building heap: O(A log A)
+        - Extract max: O(log A)
+        - Space: O(A) for priority queue
         """
         actions = self.generate_candidate_actions()
         pq: List[CPUAction] = []
@@ -394,7 +416,10 @@ class CPUPlayer:
         Approximates how much a trade improves your ability to afford
         common builds (settlement, city, road, dev card).
         
-        Very rough heuristic, but helps guide “good” trades.
+        Very rough heuristic, but helps guide "good" trades.
+        
+        Time Complexity: O(1) - checks 4 build types (settlement, city, road, dev card)
+        - Constant number of resource comparisons
         """
         player_id = self.rules.current_player_id()
         res_before = self.rules.player_resources(player_id).copy()
